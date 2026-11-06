@@ -1,0 +1,68 @@
+name: Build SOCI 4.0.3 Windows DLL
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build-windows:
+    runs-on: windows-2022
+    strategy:
+      matrix:
+        config: [Release]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download SOCI 4.0.3 source
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/SOCI/soci/archive/refs/tags/v4.0.3.zip" -OutFile soci-4.0.3.zip
+          Expand-Archive soci-4.0.3.zip -DestinationPath .
+          Rename-Item -Path "soci-4.0.3" -NewName "soci"
+
+      - name: Configure with CMake
+        run: |
+          mkdir build
+          cd build
+          cmake ../soci -G "Visual Studio 17 2022" -A x64 `
+            -DSOCI_SHARED=ON `
+            -DSOCI_STATIC=OFF `
+            -DSOCI_TESTS=OFF `
+            -DSOCI_SQLITE3=ON `
+            -DSOCI_MYSQL=OFF `
+            -DSOCI_POSTGRESQL=OFF `
+            -DSOCI_ODBC=OFF `
+            -DSOCI_ORACLE=OFF `
+            -DSOCI_FIREBIRD=OFF `
+            -DSOCI_DB2=OFF `
+            -DWITH_BOOST=OFF `
+            -DCMAKE_CXX_STANDARD=11 `
+            -DCMAKE_BUILD_TYPE=${{ matrix.config }}
+
+      - name: Build
+        run: |
+          cd build
+          cmake --build . --config ${{ matrix.config }} --parallel
+
+      - name: Collect artifacts
+        run: |
+          mkdir artifacts
+          # DLL and LIB
+          Copy-Item -Path "build\lib\${{ matrix.config }}\*.dll" -Destination "artifacts\" -ErrorAction SilentlyContinue
+          Copy-Item -Path "build\lib\${{ matrix.config }}\*.lib" -Destination "artifacts\" -ErrorAction SilentlyContinue
+          # Headers
+          Copy-Item -Path "soci\include" -Destination "artifacts\include" -Recurse
+          # Also copy the generated config headers if any
+          if (Test-Path "build\include") {
+            Copy-Item -Path "build\include\*" -Destination "artifacts\include\" -Recurse -ErrorAction SilentlyContinue
+          }
+          # List what we got
+          Get-ChildItem -Path artifacts -Recurse | Select-Object FullName, Length
+
+      - name: Upload Windows DLL package
+        uses: actions/upload-artifact@v4
+        with:
+          name: soci-4.0.3-windows-dll-${{ matrix.config }}
+          path: artifacts/
+          retention-days: 30
