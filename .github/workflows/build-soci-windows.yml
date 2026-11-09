@@ -15,7 +15,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install MSVC v140 (VS 2015) toolset
+      - name: Install MSVC v140 (VS 2015) toolset + compatible SDK
         run: |
           Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vs_buildtools.exe" -OutFile vs_buildtools.exe
           Start-Process -FilePath .\vs_buildtools.exe -ArgumentList `
@@ -23,7 +23,7 @@ jobs:
             "--add", "Microsoft.VisualStudio.Component.VC.140", `
             "--add", "Microsoft.VisualStudio.Component.Windows10SDK.19041" `
             -Wait -NoNewWindow
-          Write-Host "v140 toolset install attempted"
+          Write-Host "v140 + SDK 19041 install attempted"
 
       - name: Download SOCI 4.0.3 source
         run: |
@@ -31,11 +31,12 @@ jobs:
           Expand-Archive soci-4.0.3.zip -DestinationPath .
           Rename-Item -Path "soci-4.0.3" -NewName "soci"
 
-      - name: Configure with CMake (v140)
+      - name: Configure with CMake (v140 + older SDK)
         run: |
           mkdir build
           cd build
           cmake ../soci -G "Visual Studio 17 2022" -A x64 -T v140 `
+            -DCMAKE_SYSTEM_VERSION=10.0.19041.0 `
             -DSOCI_SHARED=ON `
             -DSOCI_STATIC=OFF `
             -DSOCI_TESTS=OFF `
