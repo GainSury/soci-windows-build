@@ -1,4 +1,4 @@
-name: Build SOCI 4.0.3 Windows DLL (MSVC 2015 / v140)
+name: Build SOCI 4.0.3 Windows DLL (MSVC 2015 / v140) + SQLite
 
 on:
   workflow_dispatch:
@@ -31,7 +31,24 @@ jobs:
           Expand-Archive soci-4.0.3.zip -DestinationPath .
           Rename-Item -Path "soci-4.0.3" -NewName "soci"
 
-      - name: Configure with CMake (v140)
+      - name: Download and build SQLite amalgamation
+        run: |
+          Invoke-WebRequest -Uri "https://www.sqlite.org/2024/sqlite-amalgamation-3470000.zip" -OutFile sqlite.zip
+          Expand-Archive sqlite.zip -DestinationPath sqlite-src
+          $sqliteDir = (Get-ChildItem sqlite-src -Directory | Select-Object -First 1).FullName
+          New-Item -ItemType Directory -Path sqlite-build -Force | Out-Null
+          Set-Location sqlite-build
+          cmake -G "Visual Studio 17 2022" -A x64 -T v140 -DCMAKE_BUILD_TYPE=Release `
+            -DSQLite3_INCLUDE_DIR="$sqliteDir" `
+            -DSQLite3_LIBRARY="sqlite3.lib" `
+            "$sqliteDir"
+          # Build sqlite3 as static lib from amalgamation
+          cl /c /O2 /MD /DSQLITE_ENABLE_COLUMN_METADATA /DSQLITE_ENABLE_JSON1 "$sqliteDir\sqlite3.c"
+          lib sqlite3.obj /OUT:sqlite3.lib
+          Copy-Item "$sqliteDir\sqlite3.h" .
+          Set-Location ..
+
+      - name: Configure with CMake (v140 + SQLite)
         run: |
           mkdir build
           cd build
@@ -39,7 +56,9 @@ jobs:
             -DSOCI_SHARED=ON `
             -DSOCI_STATIC=OFF `
             -DSOCI_TESTS=OFF `
-            -DSOCI_SQLITE3=OFF `
+            -DSOCI_SQLITE3=ON `
+            -DSQLITE3_INCLUDE_DIR="${{ github.workspace }}/sqlite-build" `
+            -DSQLITE3_LIBRARY="${{ github.workspace }}/sqlite-build/sqlite3.lib" `
             -DSOCI_MYSQL=OFF `
             -DSOCI_POSTGRESQL=OFF `
             -DSOCI_ODBC=OFF `
@@ -66,6 +85,8 @@ jobs:
           mkdir artifacts
           Get-ChildItem -Path build -Recurse -Filter "*.dll" | Copy-Item -Destination "artifacts\" -ErrorAction SilentlyContinue
           Get-ChildItem -Path build -Recurse -Filter "*.lib" | Copy-Item -Destination "artifacts\" -ErrorAction SilentlyContinue
+          Copy-Item -Path "sqlite-build\sqlite3.dll" -Destination "artifacts\" -ErrorAction SilentlyContinue
+          Copy-Item -Path "sqlite-build\sqlite3.lib" -Destination "artifacts\" -ErrorAction SilentlyContinue
           Copy-Item -Path "soci\include" -Destination "artifacts\include" -Recurse
           if (Test-Path "build\include") {
             Copy-Item -Path "build\include\*" -Destination "artifacts\include\" -Recurse -ErrorAction SilentlyContinue
@@ -76,6 +97,6 @@ jobs:
       - name: Upload Windows DLL package
         uses: actions/upload-artifact@v4
         with:
-          name: soci-4.0.3-windows-dll-v140-${{ matrix.config }}
+          name: soci-4.0.3-windows-dll-v140-sqlite-${{ matrix.config }}
           path: artifacts/
           retention-days: 30
