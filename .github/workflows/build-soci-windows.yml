@@ -1,4 +1,4 @@
-name: Build SOCI 4.0.3 Windows DLL
+name: Build SOCI 4.0.3 Windows DLL (MSVC 2015 / v140)
 
 on:
   workflow_dispatch:
@@ -15,21 +15,31 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install MSVC v140 (VS 2015) toolset
+        run: |
+          Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vs_buildtools.exe" -OutFile vs_buildtools.exe
+          Start-Process -FilePath .\vs_buildtools.exe -ArgumentList `
+            "--quiet", "--wait", "--norestart", "--nocache", `
+            "--add", "Microsoft.VisualStudio.Component.VC.140", `
+            "--add", "Microsoft.VisualStudio.Component.Windows10SDK.19041" `
+            -Wait -NoNewWindow
+          Write-Host "v140 toolset install attempted"
+
       - name: Download SOCI 4.0.3 source
         run: |
           Invoke-WebRequest -Uri "https://github.com/SOCI/soci/archive/refs/tags/v4.0.3.zip" -OutFile soci-4.0.3.zip
           Expand-Archive soci-4.0.3.zip -DestinationPath .
           Rename-Item -Path "soci-4.0.3" -NewName "soci"
 
-      - name: Configure with CMake
+      - name: Configure with CMake (v140)
         run: |
           mkdir build
           cd build
-          cmake ../soci -G "Visual Studio 17 2022" -A x64 `
+          cmake ../soci -G "Visual Studio 17 2022" -A x64 -T v140 `
             -DSOCI_SHARED=ON `
             -DSOCI_STATIC=OFF `
             -DSOCI_TESTS=OFF `
-            -DSOCI_SQLITE3=ON `
+            -DSOCI_SQLITE3=OFF `
             -DSOCI_MYSQL=OFF `
             -DSOCI_POSTGRESQL=OFF `
             -DSOCI_ODBC=OFF `
@@ -47,14 +57,8 @@ jobs:
       - name: Collect artifacts
         run: |
           mkdir artifacts
-          # DLLs are usually in bin/, import libs in lib/
-          Copy-Item -Path "build\bin\${{ matrix.config }}\*.dll" -Destination "artifacts\" -ErrorAction SilentlyContinue
-          Copy-Item -Path "build\lib\${{ matrix.config }}\*.lib" -Destination "artifacts\" -ErrorAction SilentlyContinue
-          Copy-Item -Path "build\lib\${{ matrix.config }}\*.dll" -Destination "artifacts\" -ErrorAction SilentlyContinue
-          # Also try root of build folders
           Get-ChildItem -Path build -Recurse -Filter "*.dll" | Copy-Item -Destination "artifacts\" -ErrorAction SilentlyContinue
           Get-ChildItem -Path build -Recurse -Filter "*.lib" | Copy-Item -Destination "artifacts\" -ErrorAction SilentlyContinue
-          # Headers
           Copy-Item -Path "soci\include" -Destination "artifacts\include" -Recurse
           if (Test-Path "build\include") {
             Copy-Item -Path "build\include\*" -Destination "artifacts\include\" -Recurse -ErrorAction SilentlyContinue
@@ -65,6 +69,6 @@ jobs:
       - name: Upload Windows DLL package
         uses: actions/upload-artifact@v4
         with:
-          name: soci-4.0.3-windows-dll-${{ matrix.config }}
+          name: soci-4.0.3-windows-dll-v140-${{ matrix.config }}
           path: artifacts/
           retention-days: 30
