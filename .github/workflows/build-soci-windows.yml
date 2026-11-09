@@ -31,12 +31,11 @@ jobs:
           Expand-Archive soci-4.0.3.zip -DestinationPath .
           Rename-Item -Path "soci-4.0.3" -NewName "soci"
 
-      - name: Configure with CMake (v140 + older SDK)
+      - name: Configure with CMake (v140)
         run: |
           mkdir build
           cd build
           cmake ../soci -G "Visual Studio 17 2022" -A x64 -T v140 `
-            -DCMAKE_SYSTEM_VERSION=10.0.19041.0 `
             -DSOCI_SHARED=ON `
             -DSOCI_STATIC=OFF `
             -DSOCI_TESTS=OFF `
@@ -49,6 +48,13 @@ jobs:
             -DSOCI_DB2=OFF `
             -DWITH_BOOST=OFF `
             -DCMAKE_CXX_STANDARD=11
+
+      - name: Force older Windows SDK in project files
+        run: |
+          Get-ChildItem -Path build -Recurse -Filter "*.vcxproj" | ForEach-Object {
+            (Get-Content $_.FullName) -replace '<WindowsTargetPlatformVersion>.*</WindowsTargetPlatformVersion>', '<WindowsTargetPlatformVersion>10.0.19041.0</WindowsTargetPlatformVersion>' | Set-Content $_.FullName
+          }
+          Write-Host "Patched WindowsTargetPlatformVersion to 10.0.19041.0"
 
       - name: Build
         run: |
