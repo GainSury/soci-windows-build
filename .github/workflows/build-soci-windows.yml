@@ -38,10 +38,8 @@ jobs:
           $sqliteDir = (Get-ChildItem sqlite-src -Directory | Select-Object -First 1).FullName
           New-Item -ItemType Directory -Path sqlite-build -Force | Out-Null
           Set-Location sqlite-build
-          # Compile amalgamation with v140
-          & "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64 -vcvars_ver=14.0
-          cl /c /O2 /MD /DSQLITE_ENABLE_COLUMN_METADATA /DSQLITE_ENABLE_JSON1 "$sqliteDir\sqlite3.c"
-          lib sqlite3.obj /OUT:sqlite3.lib
+          $vcvars = "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat"
+          cmd /c "`"$vcvars`" x64 -vcvars_ver=14.0 && cl /c /O2 /MD /DSQLITE_ENABLE_COLUMN_METADATA /DSQLITE_ENABLE_JSON1 `"$sqliteDir\sqlite3.c`" && lib sqlite3.obj /OUT:sqlite3.lib"
           Copy-Item "$sqliteDir\sqlite3.h" .
           Set-Location ..
 
