@@ -37,8 +37,7 @@ jobs:
             -DSOCI_FIREBIRD=OFF `
             -DSOCI_DB2=OFF `
             -DWITH_BOOST=OFF `
-            -DCMAKE_CXX_STANDARD=11 `
-            -DCMAKE_BUILD_TYPE=${{ matrix.config }}
+            -DCMAKE_CXX_STANDARD=11
 
       - name: Build
         run: |
@@ -48,16 +47,19 @@ jobs:
       - name: Collect artifacts
         run: |
           mkdir artifacts
-          # DLL and LIB
-          Copy-Item -Path "build\lib\${{ matrix.config }}\*.dll" -Destination "artifacts\" -ErrorAction SilentlyContinue
+          # DLLs are usually in bin/, import libs in lib/
+          Copy-Item -Path "build\bin\${{ matrix.config }}\*.dll" -Destination "artifacts\" -ErrorAction SilentlyContinue
           Copy-Item -Path "build\lib\${{ matrix.config }}\*.lib" -Destination "artifacts\" -ErrorAction SilentlyContinue
+          Copy-Item -Path "build\lib\${{ matrix.config }}\*.dll" -Destination "artifacts\" -ErrorAction SilentlyContinue
+          # Also try root of build folders
+          Get-ChildItem -Path build -Recurse -Filter "*.dll" | Copy-Item -Destination "artifacts\" -ErrorAction SilentlyContinue
+          Get-ChildItem -Path build -Recurse -Filter "*.lib" | Copy-Item -Destination "artifacts\" -ErrorAction SilentlyContinue
           # Headers
           Copy-Item -Path "soci\include" -Destination "artifacts\include" -Recurse
-          # Also copy the generated config headers if any
           if (Test-Path "build\include") {
             Copy-Item -Path "build\include\*" -Destination "artifacts\include\" -Recurse -ErrorAction SilentlyContinue
           }
-          # List what we got
+          Write-Host "=== Collected files ==="
           Get-ChildItem -Path artifacts -Recurse | Select-Object FullName, Length
 
       - name: Upload Windows DLL package
